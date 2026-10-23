@@ -1,0 +1,70 @@
+name: Valorant Shop
+
+on:
+  # 00:05 UTC, just after the daily shop reset (5:05pm PDT / 4:05pm PST).
+  schedule:
+    - cron: "5 0 * * *"
+  workflow_dispatch: {}
+  # Website stars commit to wishlist.txt: rebuild the site, but don't re-post to Discord.
+  push:
+    branches: [main]
+    paths: [wishlist.txt]
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: shop
+  cancel-in-progress: false
+
+jobs:
+  shop:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - run: pip install -r requirements.txt
+
+      - name: Fetch shop, build site, notify Discord
+        id: run
+        env:
+          RIOT_COOKIES: ${{ secrets.RIOT_COOKIES }}
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          DISCORD_USER_ID: ${{ secrets.DISCORD_USER_ID }}
+          SITE_URL: ${{ vars.SITE_URL }}
+          REGION: na
+          COOKIES_OUT: ${{ runner.temp }}/cookies.json
+        run: python scripts/run.py ${{ github.event_name == 'push' && '--no-discord' || '' }}
+
+      # Riot hands out a fresh ssid on every login; save it so the session keeps
+      # renewing. Optional: needs a GH_PAT secret (fine-grained, this repo only,
+      # "Secrets: read and write"). Without it the original cookie is reused.
+      - name: Save refreshed Riot session
+        if: ${{ !cancelled() }}
+        env:
+          GH_TOKEN: ${{ secrets.GH_PAT }}
+        run: |
+          if [ ! -s "$RUNNER_TEMP/cookies.json" ]; then echo "No refreshed session"; exit 0; fi
+          if [ -z "$GH_TOKEN" ]; then echo "GH_PAT not set; skipping"; exit 0; fi
+          gh secret set RIOT_COOKIES --repo "$GITHUB_REPOSITORY" < "$RUNNER_TEMP/cookies.json"
+
+      # Publish even when the shop fetch failed: the page then shows a banner.
+      - uses: actions/configure-pages@v5
+        if: ${{ !cancelled() && hashFiles('site/index.html') != '' }}
+      - uses: actions/upload-pages-artifact@v3
+        if: ${{ !cancelled() && hashFiles('site/index.html') != '' }}
+        with:
+          path: site
+      - id: deploy
+        uses: actions/deploy-pages@v4
+        if: ${{ !cancelled() && hashFiles('site/index.html') != '' }}

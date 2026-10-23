@@ -1,0 +1,568 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0a0a0d">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>Shop</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0a0d;
+    --red: #ff4655;
+    --glass: rgba(255, 255, 255, 0.045);
+    --edge: rgba(255, 255, 255, 0.10);
+    --text: #f5f5f7;
+    --muted: rgba(245, 245, 247, 0.5);
+    --want: #ffd166;
+  }
+  * { box-sizing: border-box; margin: 0; }
+  html { background: var(--bg); }
+  body {
+    color: var(--text);
+    font: 500 16px/1.3 Inter, system-ui, -apple-system, sans-serif;
+    min-height: 100vh;
+    padding: max(24px, env(safe-area-inset-top)) 16px 40px;
+    -webkit-font-smoothing: antialiased;
+    background:
+      radial-gradient(60vmax 50vmax at 0% 0%, rgba(255, 70, 85, 0.16), transparent 60%),
+      radial-gradient(50vmax 45vmax at 100% 100%, rgba(255, 70, 85, 0.10), transparent 60%),
+      radial-gradient(40vmax 40vmax at 90% 10%, rgba(120, 90, 255, 0.06), transparent 60%),
+      linear-gradient(180deg, #0d0b0e, var(--bg));
+    background-attachment: fixed;
+  }
+  /* Soft blurred blobs behind the glass so the frosting has something to refract. */
+  body::before {
+    content: ""; position: fixed; inset: -10%; z-index: -1; pointer-events: none;
+    background:
+      radial-gradient(18vmax 18vmax at 20% 35%, rgba(255, 70, 85, 0.22), transparent 70%),
+      radial-gradient(22vmax 22vmax at 80% 70%, rgba(255, 120, 90, 0.10), transparent 70%);
+    filter: blur(40px);
+  }
+  button { font: inherit; color: inherit; background: none; border: 0; cursor: pointer; }
+  main { max-width: 960px; margin: 0 auto; }
+  header {
+    display: flex; justify-content: space-between; align-items: center;
+    margin-bottom: 20px;
+  }
+  .timer {
+    font-size: 30px; font-weight: 700; font-variant-numeric: tabular-nums; letter-spacing: -0.02em;
+    background: linear-gradient(90deg, #fff 30%, #ffb3ba);
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+  }
+
+  /* Glass surface shared by cards, nav, search, chips. */
+  .glass {
+    background: linear-gradient(160deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.015) 45%), var(--glass);
+    -webkit-backdrop-filter: blur(24px) saturate(160%);
+    backdrop-filter: blur(24px) saturate(160%);
+    border: 1px solid var(--edge);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.16), 0 10px 30px -12px rgba(0, 0, 0, 0.6);
+  }
+
+  .nav { display: flex; padding: 4px; border-radius: 999px; gap: 2px; }
+  .nav button {
+    padding: 7px 14px; border-radius: 999px; font-size: 14px; font-weight: 600; color: var(--muted);
+    display: flex; align-items: center; gap: 6px; transition: background .2s, color .2s;
+  }
+  .nav button.on { background: rgba(255, 255, 255, 0.12); color: var(--text); }
+  .nav .count { color: var(--want); font-variant-numeric: tabular-nums; }
+
+  [hidden] { display: none !important; }
+
+  .sync { position: relative; width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; color: var(--muted); }
+  .sync svg { width: 16px; height: 16px; }
+  .sync::after {
+    content: ""; position: absolute; top: 6px; right: 6px; width: 7px; height: 7px; border-radius: 50%;
+    background: var(--dot, #6b6f78); box-shadow: 0 0 0 2px #1a181d;
+  }
+  .sync[data-status="synced"] { --dot: #3ddc97; }
+  .sync[data-status="saving"] { --dot: var(--want); }
+  .sync[data-status="error"] { --dot: var(--red); }
+
+  .banner { display: flex; gap: 14px; align-items: center; padding: 18px; border-radius: 18px; }
+  .banner .ico, .toast .ico {
+    flex: none; width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center;
+    background: rgba(255, 70, 85, 0.2); color: var(--red);
+  }
+  .banner svg { width: 15px; height: 15px; }
+  .banner b { display: block; font-weight: 600; }
+  .banner small { display: block; color: var(--muted); font-size: 13px; margin-top: 3px; }
+
+  .sheet-bg { position: fixed; inset: 0; z-index: 30; background: rgba(0, 0, 0, 0.5); display: grid; place-items: end center; }
+  @media (min-width: 640px) { .sheet-bg { place-items: center; } }
+  .sheet {
+    width: min(440px, 100%); padding: 22px 20px max(22px, env(safe-area-inset-bottom));
+    border-radius: 22px 22px 0 0; background: rgba(26, 22, 28, 0.92);
+    display: grid; gap: 12px;
+  }
+  @media (min-width: 640px) { .sheet { border-radius: 22px; } }
+  .sheet h2 { font-size: 18px; font-weight: 700; }
+  .sheet p { font-size: 14px; color: var(--muted); line-height: 1.45; }
+  .sheet a { color: #ffb3ba; }
+  .sheet .search { font-size: 15px; }
+  .sheet .actions { display: flex; gap: 8px; justify-content: flex-end; }
+  .btn { padding: 10px 16px; border-radius: 12px; font-weight: 600; font-size: 14px; background: rgba(255, 255, 255, 0.08); }
+  .btn.primary { background: var(--red); color: #fff; }
+  .sheet .status { font-size: 13px; color: var(--muted); }
+
+  /* ---- Shop ---- */
+  .grid { display: grid; gap: 12px; grid-template-columns: minmax(0, 1fr); }
+  @media (min-width: 640px) { .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; } }
+  .card {
+    --tier: #8b8f98;
+    position: relative;
+    background:
+      radial-gradient(120% 90% at 50% 0%, color-mix(in srgb, var(--tier) 20%, transparent), transparent 70%),
+      linear-gradient(160deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.015) 45%),
+      var(--glass);
+    -webkit-backdrop-filter: blur(24px) saturate(160%);
+    backdrop-filter: blur(24px) saturate(160%);
+    border: 1px solid var(--edge);
+    border-radius: 22px;
+    padding: 20px;
+    overflow: hidden;
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.18),
+      inset 0 -1px 0 rgba(0, 0, 0, 0.25),
+      0 10px 30px -12px rgba(0, 0, 0, 0.6);
+  }
+  /* Tier accent: a thin glowing line along the top edge. */
+  .card::before, .tile::before {
+    content: ""; position: absolute; top: 0; left: 18%; right: 18%; height: 2px; border-radius: 2px;
+    background: linear-gradient(90deg, transparent, var(--tier), transparent);
+    box-shadow: 0 0 14px var(--tier);
+  }
+  /* Specular sheen across the glass. */
+  .card::after {
+    content: ""; position: absolute; inset: 0; pointer-events: none; border-radius: inherit;
+    background: linear-gradient(115deg, rgba(255, 255, 255, 0.07) 0%, transparent 30%);
+  }
+  .card.want, .tile.want {
+    border-color: color-mix(in srgb, var(--want) 70%, transparent);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.22),
+      0 0 0 1px color-mix(in srgb, var(--want) 50%, transparent),
+      0 10px 36px -8px color-mix(in srgb, var(--want) 40%, transparent);
+  }
+  .star {
+    position: absolute; top: 12px; right: 12px; z-index: 1;
+    width: 28px; height: 28px; border-radius: 50%;
+    display: grid; place-items: center; font-size: 14px;
+    background: rgba(255, 255, 255, 0.08); color: rgba(255, 255, 255, 0.45);
+    transition: background .2s, color .2s, transform .15s;
+  }
+  .star:active { transform: scale(0.88); }
+  .want > .star {
+    background: var(--want); color: #111;
+    box-shadow: 0 0 16px color-mix(in srgb, var(--want) 60%, transparent);
+  }
+  .art { height: 120px; display: grid; place-items: center; margin: 8px 0 18px; }
+  .art img { max-width: 100%; max-height: 120px; object-fit: contain; filter: drop-shadow(0 10px 18px rgba(0,0,0,.5)); }
+  .row { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+  .name { font-weight: 600; font-size: 17px; }
+  .price {
+    display: flex; align-items: center; gap: 6px; font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap;
+    padding: 5px 10px; border-radius: 999px;
+    background: rgba(255, 255, 255, 0.06); border: 1px solid rgba(255, 255, 255, 0.08);
+  }
+  .price img { width: 16px; height: 16px; }
+
+  /* ---- Wishlist ---- */
+  .mine { display: flex; gap: 10px; overflow-x: auto; padding: 2px 2px 14px; margin: 0 -2px; scrollbar-width: none; }
+  .mine::-webkit-scrollbar { display: none; }
+  .mine .tile { flex: 0 0 132px; }
+  .empty { color: var(--muted); font-size: 14px; padding: 4px 0 14px; }
+
+  .tools {
+    position: sticky; top: 0; z-index: 5;
+    margin: 0 -16px 8px; padding: 10px 16px;
+  }
+  /* Frosted backdrop that fades out at the bottom (on a pseudo-element so the fade doesn't clip the picker). */
+  .tools::before {
+    content: ""; position: absolute; inset: 0; z-index: -1;
+    background: rgba(10, 10, 13, 0.55);
+    -webkit-backdrop-filter: blur(20px); backdrop-filter: blur(20px);
+    -webkit-mask-image: linear-gradient(#000 85%, transparent); mask-image: linear-gradient(#000 85%, transparent);
+  }
+  .search {
+    width: 100%; padding: 12px 16px; border-radius: 14px;
+    font: inherit; font-size: 16px; color: var(--text); outline: none;
+  }
+  .search::placeholder { color: var(--muted); }
+  .search:focus { border-color: rgba(255, 70, 85, 0.5); }
+  .bar { display: flex; gap: 8px; }
+  .bar .search { flex: 1; min-width: 0; }
+  .pick {
+    flex: none; display: flex; align-items: center; gap: 8px;
+    padding: 0 14px; border-radius: 14px; font-size: 14px; font-weight: 600; white-space: nowrap;
+  }
+  .pick svg { width: 16px; height: 16px; opacity: .7; }
+  .pick.on { border-color: rgba(255, 70, 85, 0.5); background: rgba(255, 70, 85, 0.18); }
+
+  /* Weapon picker, laid out like the in-game buy menu. */
+  .loadout {
+    margin-top: 8px; padding: 14px; border-radius: 18px;
+    display: grid; gap: 14px 10px; grid-template-columns: repeat(3, minmax(0, 1fr));
+    background: rgba(22, 20, 26, 0.82);
+  }
+  @media (min-width: 640px) { .loadout { grid-template-columns: repeat(7, minmax(0, 1fr)); } }
+  .loadout .any { grid-column: 1 / -1; justify-self: start; }
+  .cat { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+  .cat-name {
+    text-align: left; font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase;
+    color: var(--muted); padding: 4px 8px 6px;
+  }
+  .wpn { text-align: left; font-size: 14px; padding: 6px 8px; border-radius: 9px; color: rgba(245, 245, 247, 0.85); }
+  .wpn:hover, .cat-name:hover { background: rgba(255, 255, 255, 0.06); }
+  .wpn.on, .cat-name.on { background: rgba(255, 70, 85, 0.22); color: var(--text); }
+
+  .group { margin-top: 18px; content-visibility: auto; contain-intrinsic-size: auto 220px; }
+  .group-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+  .group-head h3 { font-size: 15px; font-weight: 600; }
+  .group-head .all { font-size: 13px; color: var(--muted); padding: 4px 8px; border-radius: 8px; }
+  .group-head .all.on { color: var(--want); }
+
+  .tiles { display: grid; gap: 10px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  @media (min-width: 640px) { .tiles { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+  .tile {
+    --tier: #8b8f98;
+    position: relative; display: block; width: 100%; text-align: left;
+    padding: 14px 12px 12px; border-radius: 16px; overflow: hidden;
+    background:
+      radial-gradient(120% 80% at 50% 0%, color-mix(in srgb, var(--tier) 16%, transparent), transparent 70%),
+      var(--glass);
+    border: 1px solid var(--edge);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12);
+  }
+  .tile .star { top: 8px; right: 8px; width: 24px; height: 24px; font-size: 12px; }
+  .tile .pic { height: 56px; display: grid; place-items: center; margin: 6px 0 10px; }
+  .tile .pic img { max-width: 100%; max-height: 56px; object-fit: contain; }
+  .tile.limited .pic img { opacity: .5; filter: grayscale(.5); }
+  .lock {
+    position: absolute; top: 8px; left: 8px; z-index: 1; width: 24px; height: 24px; border-radius: 50%;
+    display: grid; place-items: center; background: rgba(0, 0, 0, 0.35); color: rgba(255, 255, 255, 0.7);
+  }
+  .lock svg { width: 12px; height: 12px; }
+
+  .toast {
+    position: fixed; left: 50%; bottom: max(20px, env(safe-area-inset-bottom)); z-index: 20;
+    transform: translate(-50%, 20px); opacity: 0; pointer-events: none;
+    display: flex; align-items: center; gap: 12px; width: min(420px, calc(100% - 32px));
+    padding: 12px 16px; border-radius: 16px; background: rgba(30, 24, 30, 0.85);
+    transition: opacity .25s, transform .25s;
+  }
+  .toast.show { opacity: 1; transform: translate(-50%, 0); }
+  .toast .ico svg { width: 15px; height: 15px; }
+  .toast b { display: block; font-size: 14px; font-weight: 600; }
+  .toast small { display: block; font-size: 13px; color: var(--muted); margin-top: 2px; }
+  .tile .label { display: block; font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <div class="timer" id="timer">--:--:--</div>
+    <div style="display:flex;gap:8px;align-items:center">
+      <button class="sync glass" id="sync" aria-label="Sync" hidden></button>
+      <nav class="nav glass">
+        <button data-view="shop">Shop</button>
+        <button data-view="wishlist">★ <span class="count" id="count">0</span></button>
+      </nav>
+    </div>
+  </header>
+
+  <section id="shop" class="grid"></section>
+
+  <section id="wish-view" hidden>
+    <div class="mine" id="mine"></div>
+    <div class="tools">
+      <div class="bar">
+        <input class="search glass" id="search" type="search" placeholder="Search skins or collections" autocomplete="off">
+        <button class="pick glass" id="pick" aria-expanded="false"></button>
+      </div>
+      <div class="loadout glass" id="loadout" hidden></div>
+    </div>
+    <div id="results"></div>
+  </section>
+</main>
+
+<div class="toast glass" id="toast" role="status"></div>
+
+<div class="sheet-bg" id="sheet" hidden>
+  <div class="sheet glass" role="dialog" aria-labelledby="sheet-title">
+    <h2 id="sheet-title">Sync wishlist</h2>
+    <p>Add a GitHub token to save stars to <code>wishlist.txt</code>, so every device and Discord use the same list.
+      <a href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener">Create token</a>
+      → only this repo → Contents: read &amp; write.</p>
+    <input class="search glass" id="token" type="password" placeholder="github_pat_…" autocomplete="off">
+    <div class="status" id="sync-status"></div>
+    <div class="actions">
+      <button class="btn" id="token-remove">Remove</button>
+      <button class="btn primary" id="token-save">Save</button>
+    </div>
+  </div>
+</div>
+
+<script id="data" type="application/json">{{data}}</script>
+<script>
+  const DATA = JSON.parse(document.getElementById("data").textContent);
+  const MEDIA = "https://media.valorant-api.com/";
+  const VP_ICON = MEDIA + "currencies/85ad13f7-3d1b-5128-9eb2-7cd8ee0b5741/displayicon.png";
+  const ICON_LOCK = '<svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 1a3.5 3.5 0 0 0-3.5 3.5V7H4a1.5 1.5 0 0 0-1.5 1.5v5A1.5 1.5 0 0 0 4 15h8a1.5 1.5 0 0 0 1.5-1.5v-5A1.5 1.5 0 0 0 12 7h-.5V4.5A3.5 3.5 0 0 0 8 1Zm2 6H6V4.5a2 2 0 1 1 4 0V7Z"/></svg>';
+  const ICON_SYNC = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M13.5 6.5A5.5 5.5 0 0 0 3.2 4.8M2.5 9.5a5.5 5.5 0 0 0 10.3 1.7"/><path d="M3 2v3h3M13 14v-3h-3"/></svg>';
+  const ICON_ALERT = '<svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 1.5a1 1 0 0 1 .87.5l6 10.5A1 1 0 0 1 14 14H2a1 1 0 0 1-.87-1.5l6-10.5A1 1 0 0 1 8 1.5ZM7.25 6v3.5h1.5V6h-1.5Zm0 4.75V12h1.5v-1.25h-1.5Z"/></svg>';
+  const ICON_GUN = '<svg viewBox="0 0 16 16" fill="currentColor"><path d="M1 5h11l1-1h2v3h-3l-1 1H8l-.6 1.2a1 1 0 0 1-.9.6H5.4L4.6 13H2l1-4H1z"/></svg>';
+  const KEY = "wishlist.v1";
+  const $ = id => document.getElementById(id);
+  const esc = s => String(s).replace(/[&<>"']/g, c => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"}[c]));
+
+  const WEAPONS = DATA.db.weapons.map(([name, category]) => ({name, category}));
+  const SKINS = DATA.db.skins.map(([name, img, w, collection, tier, limited]) => ({
+    name, img: img && MEDIA + img, weapon: WEAPONS[w].name, category: WEAPONS[w].category,
+    collection, tier, color: DATA.db.tiers[tier].color, limited,
+  }));
+  const BY_NAME = new Map(SKINS.map(s => [s.name, s]));
+
+  // ---- Wishlist state (same whole-word matching as scripts/wishlist.py) ----
+  let wishlist = (() => {
+    try { const saved = JSON.parse(localStorage.getItem(KEY)); if (Array.isArray(saved)) return saved; } catch {}
+    return DATA.wishlist.slice();
+  })();
+  const pattern = e => new RegExp("(?<!\\w)" + e.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "(?!\\w)", "i");
+  const matchOf = name => wishlist.find(e => pattern(e).test(name));
+  function save() {
+    try { localStorage.setItem(KEY, JSON.stringify(wishlist)); } catch {}
+    render();
+    schedulePush();
+  }
+
+  // ---- Sync: wishlist.txt in the repo via the GitHub contents API ----
+  const API = DATA.repo && `https://api.github.com/repos/${DATA.repo}/contents/wishlist.txt`;
+  const TOKEN_KEY = "gh-token";
+  let token = (() => { try { return localStorage.getItem(TOKEN_KEY) || ""; } catch { return ""; } })();
+  let remote = {sha: null, header: ""};
+  const b64decode = s => new TextDecoder().decode(Uint8Array.from(atob(s.replace(/\n/g, "")), c => c.charCodeAt(0)));
+  const b64encode = s => btoa(String.fromCharCode(...new TextEncoder().encode(s)));
+  function setStatus(status, text) {
+    $("sync").dataset.status = status;
+    $("sync-status").textContent = text || {off: "Saved on this device only", synced: "Synced", saving: "Saving…", error: "Sync failed — check the token"}[status];
+  }
+  async function gh(method, body) {
+    const r = await fetch(API + (method === "GET" ? "?t=" + Date.now() : ""), {
+      method, cache: "no-store", body: body && JSON.stringify(body),
+      headers: {Authorization: `Bearer ${token}`, Accept: "application/vnd.github+json"},
+    });
+    if (!r.ok) throw Object.assign(new Error("GitHub " + r.status), {status: r.status});
+    return r.json();
+  }
+  async function pull() {
+    const file = await gh("GET");
+    const lines = b64decode(file.content).split("\n");
+    remote = {sha: file.sha, header: lines.filter(l => l.trim().startsWith("#")).join("\n")};
+    wishlist = lines.map(l => l.trim()).filter(l => l && !l.startsWith("#"));
+    try { localStorage.setItem(KEY, JSON.stringify(wishlist)); } catch {}
+    render();
+    setStatus("synced");
+  }
+  let pushTimer;
+  function schedulePush() {
+    if (!API || !token) return;
+    setStatus("saving");
+    clearTimeout(pushTimer);
+    pushTimer = setTimeout(() => push(), 1200);  // batch quick taps into one commit
+  }
+  async function push(retry = true) {
+    const text = (remote.header ? remote.header + "\n" : "") + wishlist.join("\n") + "\n";
+    try {
+      const res = await gh("PUT", {message: "Update wishlist from website", content: b64encode(text), sha: remote.sha || undefined});
+      remote.sha = res.content.sha;
+      setStatus("synced");
+    } catch (e) {
+      if (retry && (e.status === 409 || e.status === 422)) {  // file changed elsewhere: take its sha, keep our list
+        try { remote.sha = (await gh("GET")).sha; return push(false); } catch {}
+      }
+      setStatus("error");
+    }
+  }
+  function openSheet(open) {
+    $("sheet").hidden = !open;
+    if (open) $("token").value = token;
+  }
+  async function saveToken(value) {
+    token = value.trim();
+    try { token ? localStorage.setItem(TOKEN_KEY, token) : localStorage.removeItem(TOKEN_KEY); } catch {}
+    if (!token) return setStatus("off");
+    setStatus("saving", "Checking…");
+    try { await pull(); openSheet(false); } catch (e) { setStatus("error", e.status === 401 ? "Token rejected" : "Couldn't reach GitHub (" + e.message + ")"); }
+  }
+  function toggle(name) {
+    if (matchOf(name)) wishlist = wishlist.filter(e => !pattern(e).test(name));
+    else { wishlist.push(name); warnIfLimited([BY_NAME.get(name)]); }
+    save();
+  }
+  function toggleCollection(collection) {
+    const skins = SKINS.filter(s => s.collection === collection);
+    if (skins.every(s => matchOf(s.name))) wishlist = wishlist.filter(e => !skins.some(s => pattern(e).test(s.name)));
+    else { skins.forEach(s => matchOf(s.name) || wishlist.push(s.name)); warnIfLimited(skins); }
+    save();
+  }
+
+  // ---- Toast: heads-up when wishlisting a skin the daily shop can't offer ----
+  let toastTimer;
+  function warnIfLimited(skins) {
+    const hit = skins.find(s => s && s.limited);
+    if (!hit) return;
+    const t = $("toast");
+    t.innerHTML = `<span class="ico">${ICON_LOCK}</span>
+      <span><b>Won't appear in your daily shop</b><small>${esc(hit.limited)}</small></span>`;
+    t.classList.add("show");
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => t.classList.remove("show"), 4500);
+  }
+
+  // ---- Rendering ----
+  function shopCard(s) {
+    const want = matchOf(s.name);
+    return `<article class="card${want ? " want" : ""}" style="--tier:${esc(s.tier_color || "#8b8f98")}">
+      <button class="star" data-toggle="${esc(s.name)}" aria-label="Wishlist">★</button>
+      <div class="art">${s.image ? `<img src="${esc(s.image)}" alt="">` : ""}</div>
+      <div class="row">
+        <div class="name">${esc(s.name)}</div>
+        <div class="price"><img src="${VP_ICON}" alt="VP">${s.price ? s.price.toLocaleString() : "?"}</div>
+      </div>
+    </article>`;
+  }
+
+  function tile(s, label = s.name) {
+    const cls = (matchOf(s.name) ? " want" : "") + (s.limited ? " limited" : "");
+    return `<button class="tile${cls}" style="--tier:${s.color}" data-toggle="${esc(s.name)}"${s.limited ? ` title="${esc(s.limited)}"` : ""}>
+      ${s.limited ? `<span class="lock">${ICON_LOCK}</span>` : ""}<span class="star">★</span>
+      <span class="pic">${s.img ? `<img src="${esc(s.img)}" alt="" loading="lazy">` : ""}</span>
+      <span class="label">${esc(label)}</span>
+    </button>`;
+  }
+
+  function renderMine() {
+    const wanted = SKINS.filter(s => matchOf(s.name));
+    $("count").textContent = wanted.length;
+    $("mine").innerHTML = wanted.map(s => tile(s)).join("");
+    $("mine").hidden = !wanted.length;
+  }
+
+  // Filter: "" = everything, "cat:Rifles" = a category, "w:Vandal" = one weapon.
+  let filter = "";
+  const filterLabel = () => filter ? filter.split(":")[1] : "All";
+  function renderPicker() {
+    $("pick").innerHTML = ICON_GUN + esc(filterLabel());
+    $("pick").classList.toggle("on", !!filter);
+    const cats = [...new Set(WEAPONS.map(w => w.category))];
+    $("loadout").innerHTML =
+      `<button class="wpn any${filter ? "" : " on"}" data-filter="">All weapons</button>` +
+      cats.map(c => {
+        const ws = WEAPONS.filter(w => w.category === c);
+        if (ws.length === 1 && ws[0].name === c)  // Melee: the category is the weapon
+          return `<div class="cat"><button class="cat-name${filter === "w:" + c ? " on" : ""}" data-filter="w:${esc(c)}">${esc(c)}</button></div>`;
+        return `<div class="cat">
+        <button class="cat-name${filter === "cat:" + c ? " on" : ""}" data-filter="cat:${esc(c)}">${esc(c)}</button>
+        ${ws.map(w =>
+          `<button class="wpn${filter === "w:" + w.name ? " on" : ""}" data-filter="w:${esc(w.name)}">${esc(w.name)}</button>`).join("")}
+      </div>`;
+      }).join("");
+  }
+  function openPicker(open) {
+    $("loadout").hidden = !open;
+    $("pick").setAttribute("aria-expanded", open);
+  }
+
+  function renderResults() {
+    const q = $("search").value.trim().toLowerCase();
+    const [kind, value] = filter.split(":");
+    const list = SKINS.filter(s =>
+      (!filter || (kind === "w" ? s.weapon : s.category) === value) &&
+      (!q || s.name.toLowerCase().includes(q) || s.collection.toLowerCase().includes(q)));
+
+    if (filter) {
+      // One weapon or category: flat grid, best tier first.
+      list.sort((a, b) => b.tier - a.tier || a.name.localeCompare(b.name));
+      $("results").innerHTML = `<div class="tiles group">${list.map(s => tile(s, kind === "w" ? s.collection : s.name)).join("")}</div>`;
+      return;
+    }
+    // All weapons: grouped by collection.
+    const groups = new Map();
+    list.forEach(s => (groups.get(s.collection) || groups.set(s.collection, []).get(s.collection)).push(s));
+    $("results").innerHTML = [...groups.keys()].sort((a, b) => a.localeCompare(b)).map(c => {
+      const skins = groups.get(c);
+      const all = SKINS.filter(s => s.collection === c).every(s => matchOf(s.name));
+      return `<div class="group">
+        <div class="group-head"><h3>${esc(c)}</h3>
+          <button class="all${all ? " on" : ""}" data-collection="${esc(c)}">${all ? "★ All" : "☆ All"}</button></div>
+        <div class="tiles">${skins.map(s => tile(s)).join("")}</div>
+      </div>`;
+    }).join("");
+  }
+
+  function render() {
+    $("shop").innerHTML = DATA.shop.error
+      ? `<div class="banner glass"><span class="ico">${ICON_ALERT}</span>
+          <span><b>Couldn't load today's shop</b><small>${esc(DATA.shop.error)}</small></span></div>`
+      : DATA.shop.skins.map(shopCard).join("");
+    renderMine();
+    if (!$("wish-view").hidden) renderResults();
+  }
+
+  // ---- Views (#wishlist) ----
+  function route() {
+    const view = location.hash === "#wishlist" ? "wishlist" : "shop";
+    $("shop").hidden = view !== "shop";
+    $("wish-view").hidden = view !== "wishlist";
+    document.querySelectorAll(".nav button").forEach(b => b.classList.toggle("on", b.dataset.view === view));
+    if (view === "wishlist") renderResults();
+  }
+
+  document.addEventListener("click", e => {
+    const t = e.target.closest("[data-toggle],[data-collection],[data-filter],[data-view],#pick");
+    if (!e.target.closest("#loadout, #pick")) openPicker(false);
+    if (!t) return;
+    if (t.id === "pick") openPicker($("loadout").hidden);
+    else if (t.dataset.toggle) toggle(t.dataset.toggle);
+    else if (t.dataset.collection) toggleCollection(t.dataset.collection);
+    else if (t.dataset.filter !== undefined) {
+      filter = t.dataset.filter; openPicker(false); renderPicker(); renderResults(); window.scrollTo({top: 0});
+    }
+    else if (t.dataset.view) location.hash = t.dataset.view === "wishlist" ? "wishlist" : "";
+  });
+  let debounce;
+  $("search").addEventListener("input", () => { clearTimeout(debounce); debounce = setTimeout(renderResults, 120); });
+  window.addEventListener("hashchange", route);
+  $("sync").addEventListener("click", () => openSheet(true));
+  $("sheet").addEventListener("click", e => { if (e.target === $("sheet")) openSheet(false); });
+  $("token-save").addEventListener("click", () => saveToken($("token").value));
+  $("token-remove").addEventListener("click", () => { $("token").value = ""; saveToken(""); });
+
+  // ---- Countdown ----
+  const resetAt = DATA.reset_at * 1000;
+  function tick() {
+    const s = Math.max(0, Math.floor((resetAt - Date.now()) / 1000));
+    const pad = n => String(n).padStart(2, "0");
+    if (DATA.shop.error) { $("timer").textContent = "--:--:--"; return; }
+    $("timer").textContent = s ? pad(Math.floor(s / 3600)) + ":" + pad(Math.floor(s % 3600 / 60)) + ":" + pad(s % 60) : "New shop";
+  }
+
+  renderPicker();
+  render();
+  if (API) {
+    $("sync").hidden = false;
+    $("sync").innerHTML = ICON_SYNC;
+    setStatus("off");
+    if (token) pull().catch(() => setStatus("error"));
+  }
+  route();
+  tick(); setInterval(tick, 1000);
+</script>
+</body>
+</html>
