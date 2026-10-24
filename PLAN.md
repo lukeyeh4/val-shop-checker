@@ -70,7 +70,7 @@ requirements.txt             # requests
 ## Decisions
 
 - **Reset time:** the shop resets at 00:00 UTC; cron runs at 00:17 with backups at 00:47 and 02:17 (GitHub can drop scheduled runs), and only the first success of the day posts to Discord
-  (5:05pm PDT / 4:05pm PST).
+  (5:17pm PDT / 4:17pm PST).
 - **Pages visibility:** on a free plan the repo must be public for Pages.
   Secrets stay hidden, but the page itself is viewable by anyone with the URL.
   Never write tokens or cookies to `site/`.
