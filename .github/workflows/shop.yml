@@ -1,9 +1,13 @@
 name: Valorant Shop
 
 on:
-  # 00:05 UTC, just after the daily shop reset (5:05pm PDT / 4:05pm PST).
+  # The shop resets at 00:00 UTC (5pm PDT / 4pm PST). GitHub can delay or drop
+  # scheduled runs under load, so there are backups; only the first successful
+  # run of the UTC day posts to Discord (see "Already posted today?").
   schedule:
-    - cron: "5 0 * * *"
+    - cron: "17 0 * * *"
+    - cron: "47 0 * * *"
+    - cron: "17 2 * * *"
   workflow_dispatch: {}
   # Website stars commit to wishlist.txt: rebuild the site, but don't re-post to Discord.
   push:
@@ -12,6 +16,7 @@ on:
 
 permissions:
   contents: read
+  actions: read
   pages: write
   id-token: write
 
@@ -35,6 +40,20 @@ jobs:
 
       - run: pip install -r requirements.txt
 
+      # Skip Discord if a scheduled/manual run already succeeded today (UTC = shop day),
+      # and always for wishlist pushes (those only rebuild the site).
+      - name: Already posted today?
+        id: posted
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if [ "$GITHUB_EVENT_NAME" = "push" ]; then echo "flag=--no-discord" >> "$GITHUB_OUTPUT"; exit 0; fi
+          n=$(gh run list --repo "$GITHUB_REPOSITORY" --workflow shop.yml --status success \
+                --created ">=$(date -u +%F)" --json event,databaseId \
+                --jq "[.[] | select(.event != \"push\" and .databaseId != $GITHUB_RUN_ID)] | length")
+          echo "successful runs today: $n"
+          if [ "$n" -gt 0 ]; then echo "flag=--no-discord" >> "$GITHUB_OUTPUT"; fi
+
       - name: Fetch shop, build site, notify Discord
         id: run
         env:
@@ -44,7 +63,7 @@ jobs:
           SITE_URL: ${{ vars.SITE_URL }}
           REGION: na
           COOKIES_OUT: ${{ runner.temp }}/cookies.json
-        run: python scripts/run.py ${{ github.event_name == 'push' && '--no-discord' || '' }}
+        run: python scripts/run.py ${{ steps.posted.outputs.flag }}
 
       # Riot hands out a fresh ssid on every login; save it so the session keeps
       # renewing. Optional: needs a GH_PAT secret (fine-grained, this repo only,

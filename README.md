@@ -3,7 +3,8 @@
 See your 4 daily VALORANT shop skins on any device (including your phone)
 without opening VALORANT.
 
-A GitHub Action runs every day just after the shop resets (00:05 UTC), then:
+A GitHub Action runs every day shortly after the shop resets (00:17 UTC, with
+backup runs at 00:47 and 02:17 in case GitHub drops one), then:
 
 - publishes a **website** (GitHub Pages) with the skins, prices, a reset
   countdown, and a ★ **wishlist** browser for every skin

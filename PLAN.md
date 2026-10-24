@@ -47,7 +47,7 @@ scripts/
   webpage.py     # renders site/index.html from shop data
 wishlist.txt     # skins I'm waiting for
 web/index.html   # page template (shop + wishlist browser), data injected at build
-.github/workflows/shop.yml   # cron 5 0 * * * + manual trigger; deploys Pages
+.github/workflows/shop.yml   # daily cron (00:17 UTC + 2 backups) + manual trigger; deploys Pages
 requirements.txt             # requests
 ```
 
@@ -69,7 +69,7 @@ requirements.txt             # requests
 
 ## Decisions
 
-- **Reset time:** the shop resets at 00:00 UTC, so cron runs at `5 0 * * *`
+- **Reset time:** the shop resets at 00:00 UTC; cron runs at 00:17 with backups at 00:47 and 02:17 (GitHub can drop scheduled runs), and only the first success of the day posts to Discord
   (5:05pm PDT / 4:05pm PST).
 - **Pages visibility:** on a free plan the repo must be public for Pages.
   Secrets stay hidden, but the page itself is viewable by anyone with the URL.
