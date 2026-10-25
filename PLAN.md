@@ -27,6 +27,10 @@ trimmed to the shop only (no rank or match stats).
   autocomplete and limited-skin warnings) and `/shop` (anyone, today's shop). A
   Cloudflare Worker (`discord-bot/`) reads `skins.json` and `shop.json`, which each
   run publishes next to the site, and edits `wishlist.txt` through the GitHub API.
+  Friends can `/link` their own Riot account: a one-time page on the Worker takes
+  their `ssid` (never sent through Discord), saved in Cloudflare KV. Their `/shop`
+  is then fetched live by the Worker (`discord-bot/riot.js`, same flow as `riot.py`)
+  and cached until their reset. `/unlink` deletes it.
 
 ## How it works
 
@@ -52,7 +56,7 @@ scripts/
 wishlist.txt     # skins I'm waiting for
 web/index.html   # page template (shop + wishlist browser), data injected at build
 .github/workflows/shop.yml   # daily run + manual trigger; deploys Pages
-discord-bot/   # Cloudflare Worker for /wishlist, /shop and /stats
+discord-bot/   # Cloudflare Worker: /wishlist, /shop, /stats, /link (riot.js, link-page.js)
 scripts/history.py           # appends each day's shop to history/shop.jsonl
 scripts/stats.py             # history → site/stats.json
 history/shop.jsonl           # one line per shop day (committed by the workflow)
@@ -75,7 +79,7 @@ requirements.txt             # requests
       secret; when the session dies, post a warning on Discord and show a banner
       on the site.
 - [x] **7. Docs:** fill in README setup steps.
-- [x] **8. Discord bot:** `/wishlist` and `/shop` on a Cloudflare Worker.
+- [x] **8. Discord bot:** `/wishlist` and `/shop` on a Cloudflare Worker; `/link` so friends see their own shop.
 
 ## Decisions
 

@@ -2,6 +2,10 @@
 // shop; /stats shows shop statistics. Discord POSTs each command here; edits commit to the repo the same way
 // the website's sync does, and that push rebuilds the site. Skin pictures and autocomplete come from the site's
 // skins.json, the shop from its shop.json, statistics from its stats.json.
+// Friends can /link their Riot account (saved in the LINKS KV namespace) so /shop shows their own shop.
+
+import {fetchShop, RiotError, SHARDS} from "./riot.js";
+import {linkPage} from "./link-page.js";
 
 const API = "https://api.github.com/repos/";
 const MEDIA = "https://media.valorant-api.com/";
@@ -10,6 +14,8 @@ const MAX_EMBEDS = 10;  // Discord's limit per message
 
 export default {
   async fetch(request, env, ctx) {
+    const path = new URL(request.url).pathname;
+    if (path.startsWith("/link/")) return linkRoute(request, path.slice("/link/".length), env);
     if (request.method !== "POST") return new Response("val-shop wishlist bot");
     const body = await request.text();
     if (!(await verify(request, body, env.DISCORD_PUBLIC_KEY))) return new Response("bad signature", {status: 401});
@@ -17,17 +23,30 @@ export default {
     if (interaction.type === 1) return json({type: 1});  // Discord's endpoint check
     if (interaction.type !== 2 && interaction.type !== 4) return new Response("unhandled", {status: 400});
 
-    const owner = (interaction.member || interaction).user.id === env.DISCORD_USER_ID;
+    const userId = (interaction.member || interaction).user.id;
+    const owner = userId === env.DISCORD_USER_ID;
     const command = interaction.data.name;
-    const isPublic = command === "shop" || command === "stats";  // anyone can use these (the website is public too)
+    const isPublic = command !== "wishlist";  // anyone can use these (the website is public too)
     if (interaction.type === 4) {  // autocomplete while typing
       const sub = command === "stats" ? {name: "add", options: interaction.data.options} : interaction.data.options[0];
-      return json({type: 8, data: {choices: owner || isPublic ? await suggest(sub, env) : []}});
+      return json({type: 8, data: {choices: owner || command === "stats" ? await suggest(sub, env) : []}});
     }
     if (!owner && !isPublic) return json({type: 4, data: {content: "Only the wishlist owner can use this.", flags: EPHEMERAL}});
-    const reply = command === "shop" ? shopReply(env)
-      : command === "stats" ? statsReply(interaction.data.options?.[0]?.value, env)
-      : handle(interaction.data.options[0], env);
+    if (command === "link") return json({type: 4, data: await linkReply(userId, owner, request, env)});
+    if (command === "unlink") {
+      await env.LINKS.delete(`user:${userId}`);
+      return json({type: 4, data: {content: "Unlinked: your saved Riot login is deleted.", flags: EPHEMERAL}});
+    }
+    let reply;
+    if (command === "shop" && !owner) {
+      const linked = await env.LINKS.get(`user:${userId}`, "json");
+      if (!linked) return json({type: 4, data: {content: "`/shop` shows your own shop once you link your Riot account: run `/link`.", flags: EPHEMERAL}});
+      reply = friendShop(userId, linked, env);
+    } else {
+      reply = command === "shop" ? shopReply(env)
+        : command === "stats" ? statsReply(interaction.data.options?.[0]?.value, env)
+        : handle(interaction.data.options[0], env);
+    }
     // Discord wants an answer within 3s and GitHub can be slower: say "thinking…", then edit in the result.
     ctx.waitUntil(reply
       .catch(e => ({content: `⚠️ ${e.message}`}))
@@ -47,14 +66,67 @@ async function shopReply(env) {
   lines.push(reset_at * 1000 > Date.now()
     ? `Resets <t:${reset_at}:R>`
     : `⚠️ The shop reset <t:${reset_at}:R> and the new one hasn't been fetched yet, so this is the previous shop.`);
-  const embeds = shop.skins.map(s => ({
+  return shopMessage(lines, shop.skins, env.SITE_URL);
+}
+
+function shopMessage(lines, skins, url) {
+  const embeds = skins.map(s => ({
     title: (s.wishlist_match ? "★ " : "") + s.name,
     description: s.price ? `**${s.price.toLocaleString("en-US")}** VP` : "",
     color: s.tier_color ? parseInt(s.tier_color.slice(1), 16) : 0x8B8F98,
     ...(s.image && {image: {url: s.image}}),
   }));
-  if (embeds.length) embeds[0].url = env.SITE_URL;
+  if (url && embeds.length) embeds[0].url = url;
   return {content: lines.join("\n"), embeds};
+}
+
+// /shop for a friend: their saved shop until it resets, then a fresh one with their saved login.
+async function friendShop(userId, linked, env) {
+  let shop = linked.shop;
+  if (!shop || shop.reset_at * 1000 <= Date.now()) {
+    try {
+      shop = await saveLink(env, userId, await fetchShop(linked.cookies, linked.shard, await loadDb(env)), linked.shard);
+    } catch (e) {
+      throw new Error(e.loginFailed ? `${e.message} Run /link again.` : `Couldn't get your shop: ${e.message}`);
+    }
+  }
+  return shopMessage([`<@${userId}>'s shop · resets <t:${shop.reset_at}:R>`], shop.skins);
+}
+
+async function saveLink(env, userId, fetched, shard) {
+  const shop = {skins: fetched.skins, reset_at: Math.floor(Date.now() / 1000) + (fetched.resets_in || 0)};
+  await env.LINKS.put(`user:${userId}`, JSON.stringify({cookies: fetched.cookies, shard, shop}));
+  return shop;
+}
+
+async function linkReply(userId, owner, request, env) {
+  if (owner) return {content: "Your shop already comes from the daily run, so there's nothing to link.", flags: EPHEMERAL};
+  const token = crypto.randomUUID();
+  await env.LINKS.put(`link:${token}`, userId, {expirationTtl: 600});
+  return {
+    content: "Open this to connect your Riot account. It works once, for 10 minutes. Don't share it.",
+    flags: EPHEMERAL,
+    components: [{type: 1, components: [{type: 2, style: 5, label: "Link Riot account", url: new URL(`/link/${token}`, request.url).href}]}],
+  };
+}
+
+// The page behind /link's button: shows the form, then checks the ssid against Riot and saves it.
+async function linkRoute(request, token, env) {
+  const userId = await env.LINKS.get(`link:${token}`);
+  if (!userId) return linkPage({expired: true});
+  if (request.method !== "POST") return linkPage();
+  const form = await request.formData();
+  const ssid = String(form.get("ssid") || "").trim().replace(/^ssid=/i, "");
+  const shard = Object.hasOwn(SHARDS, form.get("shard")) ? form.get("shard") : "na";
+  if (!ssid) return linkPage({error: "Paste your ssid first."});
+  try {
+    const shop = await saveLink(env, userId, await fetchShop({ssid}, shard, await loadDb(env)), shard);
+    await env.LINKS.delete(`link:${token}`);
+    return linkPage({done: shop.skins});
+  } catch (e) {
+    if (!(e instanceof RiotError)) return linkPage({error: "Something went wrong. Try again."});
+    return linkPage({error: e.loginFailed ? `${e.message} Copy it again while signed in.` : `${e.message}. Is the region right?`});
+  }
 }
 
 // /stats: an overview, or one skin or line ("Reaver") with how often it showed up and its odds.
@@ -62,10 +134,10 @@ async function statsReply(query, env) {
   const [r, db] = await Promise.all([fetch(new URL("stats.json?t=" + Date.now(), env.SITE_URL)), loadDb(env)]);
   if (!r.ok) throw new Error(`Couldn't load stats (site said ${r.status})`);
   const stats = await r.json();
-  return query?.trim() ? skinStats(query.trim(), stats, db) : overview(stats);
+  return query?.trim() ? skinStats(query.trim(), stats, db) : overview(stats, env.DISCORD_USER_ID);
 }
 
-function overview(s) {
+function overview(s, ownerId) {
   const w = s.wishlist;
   const wish = w.skins ? [
     `${w.skins} shop skin${w.skins === 1 ? "" : "s"} on it`,
@@ -83,7 +155,7 @@ function overview(s) {
       {name: "Top weapons", value: s.weapons.slice(0, 5).map(x => `${x.name} ×${x.slots}`).join("\n") || "-", inline: true},
     );
   }
-  const since = s.days ? `${s.days} day${s.days === 1 ? "" : "s"} tracked, since ${s.first_day}` : "No days recorded yet. Tracking starts with the next daily shop.";
+  const since = `<@${ownerId}>'s shop. ` + (s.days ? `${s.days} day${s.days === 1 ? "" : "s"} tracked, since ${s.first_day}` : "No days recorded yet. Tracking starts with the next daily shop.");
   return {content: "", embeds: [{title: "Shop stats", description: since, color: 0xFF4655, fields}]};
 }
 

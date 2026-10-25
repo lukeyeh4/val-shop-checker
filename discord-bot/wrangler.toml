@@ -6,6 +6,11 @@ compatibility_date = "2025-01-01"
 GITHUB_REPO = "lukeyeh4/val-shop-checker"
 SITE_URL = "https://lukeyeh4.github.io/val-shop-checker/"  # serves skins.json (pictures, autocomplete)
 
+# Friends' linked Riot logins (user:<discord id>) and one-time /link tokens (link:<token>).
+[[kv_namespaces]]
+binding = "LINKS"
+id = "8d88dc3b7f564a25acd4fe6b0760ee3d"
+
 # Secrets (set with `npx wrangler secret put NAME`, not here):
 #   DISCORD_PUBLIC_KEY  Discord app -> General Information -> Public Key
 #   DISCORD_USER_ID     your Discord user ID (only you can use the command)

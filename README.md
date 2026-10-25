@@ -54,10 +54,12 @@ write**. Stars then commit to `wishlist.txt`, which Discord uses and every devic
 loads. You can also edit `wishlist.txt` directly; one skin per line, whole-word
 and case-insensitive (`Reaver` = every Reaver skin).
 
-### 5. Discord `/wishlist`, `/shop` and `/stats` commands (optional)
+### 5. Discord bot commands (optional)
 
-`/shop` posts today's shop and `/stats` shows shop statistics and odds
-(anyone in the server can use them). `/wishlist show`, `/wishlist add <skin>` and `/wishlist remove <skin>` edit
+`/shop` posts your shop. Friends run `/link` once (a one-time page where they paste
+their own Riot `ssid`, stored in the Worker's KV) and then `/shop` shows *their* shop;
+`/unlink` deletes it. `/stats` shows statistics and odds for your shop. Anyone in the
+server can use these. `/wishlist show`, `/wishlist add <skin>` and `/wishlist remove <skin>` edit
 `wishlist.txt` from Discord, with skin pictures, autocomplete for skin names, and
 a warning for limited skins that never show up in the shop. Only you
 (`DISCORD_USER_ID`) can use them, and the replies are visible only to you. The command runs on a free Cloudflare Worker
@@ -95,6 +97,8 @@ banner. Rerun `scripts/bootstrap.py` and update the `RIOT_COOKIES` secret.
 
 ## Security
 
+- Friends' linked `ssid`s live in the Worker's KV namespace (only your Cloudflare
+  account can read it); `/unlink` deletes one.
 - `ssid` gives full access to your Riot account. It lives only in `.cookies.json`
   (gitignored) and the `RIOT_COOKIES` secret, and is masked in Action logs.
 - On a free plan, GitHub Pages needs a **public** repo: secrets stay hidden,

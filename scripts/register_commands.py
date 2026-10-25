@@ -1,4 +1,4 @@
-"""One-time: register the /wishlist, /shop and /stats slash commands with your Discord app.
+"""One-time: register the bot's slash commands with your Discord app.
 
 Needs the app's Application ID and bot token (Discord developer portal ->
 your app -> General Information / Bot). Run again only if the command changes.
@@ -21,11 +21,17 @@ COMMANDS = [{
     ],
 }, {
     "name": "shop",
-    "description": "Show today's VALORANT shop",
+    "description": "Show your VALORANT shop (run /link first)",
 }, {
     "name": "stats",
     "description": "Shop statistics, or how often one skin shows up",
     "options": [{"type": 3, "name": "skin", "description": "A skin or line, e.g. Reaver", "autocomplete": True}],
+}, {
+    "name": "link",
+    "description": "Connect your Riot account so /shop shows your own shop",
+}, {
+    "name": "unlink",
+    "description": "Delete your saved Riot login",
 }]
 
 
@@ -40,7 +46,7 @@ def main():
     )
     if not resp.ok:
         sys.exit(f"Discord said HTTP {resp.status_code}: {resp.text[:300]}")
-    print("Registered /wishlist, /shop and /stats.")
+    print("Registered /wishlist, /shop, /stats, /link and /unlink.")
     print(f"Add it to your server: https://discord.com/oauth2/authorize?client_id={app_id}&scope=applications.commands")
 
 
