@@ -23,6 +23,10 @@ trimmed to the shop only (no rank or match stats).
   case-insensitive matching, e.g. `Reaver` = every Reaver skin).
   Stars sync to `wishlist.txt` through the GitHub API once a token is added on
   that device; without one they stay in that browser.
+- **D. Discord bot:** `/wishlist show|add|remove` (owner only, with skin pictures,
+  autocomplete and limited-skin warnings) and `/shop` (anyone, today's shop). A
+  Cloudflare Worker (`discord-bot/`) reads `skins.json` and `shop.json`, which each
+  run publishes next to the site, and edits `wishlist.txt` through the GitHub API.
 
 ## How it works
 
@@ -47,7 +51,9 @@ scripts/
   webpage.py     # renders site/index.html from shop data
 wishlist.txt     # skins I'm waiting for
 web/index.html   # page template (shop + wishlist browser), data injected at build
-.github/workflows/shop.yml   # daily cron (00:17 UTC + 2 backups) + manual trigger; deploys Pages
+.github/workflows/shop.yml   # daily run + manual trigger; deploys Pages
+discord-bot/   # Cloudflare Worker for /wishlist and /shop
+scripts/register_commands.py # registers the slash commands with Discord
 requirements.txt             # requests
 ```
 
@@ -66,16 +72,63 @@ requirements.txt             # requests
       secret; when the session dies, post a warning on Discord and show a banner
       on the site.
 - [x] **7. Docs:** fill in README setup steps.
+- [x] **8. Discord bot:** `/wishlist` and `/shop` on a Cloudflare Worker.
 
 ## Decisions
 
-- **Reset time:** the shop resets at 00:00 UTC; cron runs at 00:17 with backups at 00:47 and 02:17 (GitHub can drop scheduled runs), and only the first success of the day posts to Discord
-  (5:17pm PDT / 4:17pm PST).
+- **Reset time:** the shop resets at 00:00 UTC (5pm PDT / 4pm PST). GitHub's own
+  cron (00:17, 00:47, 02:17) turned out to be unreliable for this repo, so an
+  external cron-job.org job triggers the workflow through the API (a fine-grained
+  token with *Actions: read/write*). Only the first success of the UTC day posts to Discord.
 - **Pages visibility:** on a free plan the repo must be public for Pages.
   Secrets stay hidden, but the page itself is viewable by anyone with the URL.
   Never write tokens or cookies to `site/`.
 - **GH_PAT:** a fine-grained token limited to this repo with *Secrets:
   read/write*.
+
+## Next: statistics (plan)
+
+Goal: answer "how often does a skin show up?", "how long since I last saw it?"
+and "what are my odds of seeing a wishlist skin?". Riot doesn't expose past shops,
+so nothing can be backfilled. Stats start from the day recording begins.
+
+**Recording**
+- Each run that fetches a shop appends one line to `history/shop.jsonl`:
+  `{"date": "2026-10-26", "skins": [{"name", "uuid", "price", "tier"}]}`.
+  Use one line per UTC day: skip if that date is already there (backup and manual runs).
+- The workflow commits the file (`permissions: contents: write`). Commits made with
+  `GITHUB_TOKEN` don't trigger other workflows, and the push trigger only watches
+  `wishlist.txt`, so this can't loop. Size is about 200 bytes a day (~70 KB a year).
+- Days where the fetch failed are simply missing. Stats count tracked days, not
+  calendar days.
+
+**Stats** (`scripts/stats.py`, run at build time, writes `site/stats.json`)
+- Overview: days tracked, average shop value (VP), priciest day, total VP offered.
+- Per skin: times seen, first and last seen, days since last seen.
+- Per tier: share of shop slots (Select…Ultra) next to that tier's share of the catalog.
+- Per weapon: share of slots (how often a Vandal shows up, etc.).
+- Wishlist: hits so far, last hit, days since the last hit.
+- Odds (an estimate): with N shop-eligible skins and 4 slots, a given skin is in today's
+  shop with probability ≈ 4/N, and at least one of k wishlist skins shows up within d days
+  with probability ≈ 1 − (1 − 4k/N)^d. Label it as assuming uniform picks. Riot's real
+  weighting is unknown, so show the observed hit rate next to it once there's enough data.
+
+**Where it shows up**
+- Website: a Stats tab built from `stats.json`.
+- Discord: `/stats` (summary) and `/stats skin:<name>` (times seen, last seen, odds),
+  served by the Worker from `stats.json`.
+- Maybe: a monthly recap post on the 1st.
+
+**Milestones**
+- [ ] 9. History: `run.py` appends to `history/shop.jsonl`; the workflow commits it.
+- [ ] 10. `stats.py` → `site/stats.json`, checked against a small hand-written history.
+- [ ] 11. Website Stats tab.
+- [ ] 12. Discord `/stats`.
+
+**Open questions**
+- Commit history to `main` (simple, one small commit a day) or to a separate `data`
+  branch (keeps `main`'s log clean)? Leaning `main`.
+- Record Night Market offers too, once that's supported?
 
 ## Later (maybe)
 

@@ -1,4 +1,4 @@
-"""One-time: register the /wishlist slash command with your Discord app.
+"""One-time: register the /wishlist and /shop slash commands with your Discord app.
 
 Needs the app's Application ID and bot token (Discord developer portal ->
 your app -> General Information / Bot). Run again only if the command changes.
@@ -19,6 +19,9 @@ COMMANDS = [{
         {"type": 1, "name": "remove", "description": "Remove a wishlist entry", "options": [
             {"type": 3, "name": "skin", "description": "Pick from your wishlist", "required": True, "autocomplete": True}]},
     ],
+}, {
+    "name": "shop",
+    "description": "Show today's VALORANT shop",
 }]
 
 
@@ -33,7 +36,7 @@ def main():
     )
     if not resp.ok:
         sys.exit(f"Discord said HTTP {resp.status_code}: {resp.text[:300]}")
-    print("Registered /wishlist.")
+    print("Registered /wishlist and /shop.")
     print(f"Add it to your server: https://discord.com/oauth2/authorize?client_id={app_id}&scope=applications.commands")
 
 

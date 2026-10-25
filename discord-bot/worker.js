@@ -1,6 +1,7 @@
-// Discord /wishlist command (Cloudflare Worker): show, add or remove wishlist.txt entries.
+// Discord bot (Cloudflare Worker): /wishlist shows, adds or removes wishlist.txt entries; /shop shows today's shop.
 // Discord POSTs each command here; edits commit to the repo the same way the website's sync does,
-// and that push rebuilds the site. Skin pictures and autocomplete come from the site's skins.json.
+// and that push rebuilds the site. Skin pictures and autocomplete come from the site's skins.json,
+// the shop from its shop.json.
 
 const API = "https://api.github.com/repos/";
 const MEDIA = "https://media.valorant-api.com/";
@@ -17,17 +18,39 @@ export default {
     if (interaction.type !== 2 && interaction.type !== 4) return new Response("unhandled", {status: 400});
 
     const owner = (interaction.member || interaction).user.id === env.DISCORD_USER_ID;
+    const isShop = interaction.data.name === "shop";  // anyone can see the shop (the website is public too)
     if (interaction.type === 4) {  // autocomplete while typing
       return json({type: 8, data: {choices: owner ? await suggest(interaction.data.options[0], env) : []}});
     }
-    if (!owner) return json({type: 4, data: {content: "Only the wishlist owner can use this.", flags: EPHEMERAL}});
+    if (!owner && !isShop) return json({type: 4, data: {content: "Only the wishlist owner can use this.", flags: EPHEMERAL}});
     // Discord wants an answer within 3s and GitHub can be slower: say "thinking…", then edit in the result.
-    ctx.waitUntil(handle(interaction.data.options[0], env)
+    ctx.waitUntil((isShop ? shopReply(env) : handle(interaction.data.options[0], env))
       .catch(e => ({content: `⚠️ ${e.message}`}))
       .then(reply => editReply(interaction, reply)));
-    return json({type: 5, data: {flags: EPHEMERAL}});
+    return json({type: 5, data: {flags: isShop ? 0 : EPHEMERAL}});
   },
 };
+
+// /shop: the latest shop the daily run saved next to the website (same look as the daily post).
+async function shopReply(env) {
+  const r = await fetch(new URL("shop.json?t=" + Date.now(), env.SITE_URL));  // fresh copy, not the CDN's
+  if (!r.ok) throw new Error(`Couldn't load the shop (site said ${r.status})`);
+  const {shop, reset_at} = await r.json();
+  if (shop.error) return {content: `⚠️ Couldn't check the shop: ${shop.error}`};
+  const hits = shop.skins.filter(s => s.wishlist_match).map(s => s.name);
+  const lines = hits.length ? [`★ **${hits.join(", ")}** in the shop`] : [];
+  lines.push(reset_at * 1000 > Date.now()
+    ? `Resets <t:${reset_at}:R>`
+    : `⚠️ The shop reset <t:${reset_at}:R> and the new one hasn't been fetched yet, so this is the previous shop.`);
+  const embeds = shop.skins.map(s => ({
+    title: (s.wishlist_match ? "★ " : "") + s.name,
+    description: s.price ? `**${s.price.toLocaleString("en-US")}** VP` : "",
+    color: s.tier_color ? parseInt(s.tier_color.slice(1), 16) : 0x8B8F98,
+    ...(s.image && {image: {url: s.image}}),
+  }));
+  if (embeds.length) embeds[0].url = env.SITE_URL;
+  return {content: lines.join("\n"), embeds};
+}
 
 async function handle(sub, env, retry = true) {
   const skin = sub.options?.[0]?.value.trim();
