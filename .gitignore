@@ -5,3 +5,4 @@ site/
 .ssid
 .env
 .DS_Store
+.wrangler/

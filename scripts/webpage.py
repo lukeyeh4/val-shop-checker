@@ -29,6 +29,8 @@ def render(shop: dict, db: dict, wishlist: list[str], now: float | None = None) 
 
 def write(shop: dict, db: dict, wishlist: list[str]) -> Path:
     SITE_DIR.mkdir(exist_ok=True)
+    # The Discord /wishlist command reads this for skin pictures and autocomplete.
+    (SITE_DIR / "skins.json").write_text(json.dumps(db, separators=(",", ":"), ensure_ascii=False))
     out = SITE_DIR / "index.html"
     out.write_text(render(shop, db, wishlist))
     return out

@@ -54,6 +54,32 @@ write**. Stars then commit to `wishlist.txt`, which Discord uses and every devic
 loads. You can also edit `wishlist.txt` directly; one skin per line, whole-word
 and case-insensitive (`Reaver` = every Reaver skin).
 
+### 5. Discord `/wishlist` command (optional)
+
+`/wishlist show`, `/wishlist add <skin>` and `/wishlist remove <skin>` edit
+`wishlist.txt` from Discord, with skin pictures, autocomplete for skin names, and
+a warning for limited skins that never show up in the shop. Only you
+(`DISCORD_USER_ID`) can use them, and the replies are visible only to you. The command runs on a free Cloudflare Worker
+(`discord-bot/`).
+
+1. [Discord developer portal](https://discord.com/developers/applications) →
+   **New Application**. Note the **Application ID** and **Public Key**
+   (General Information), and copy the **Bot → Reset Token** value.
+2. Register the command and add it to your server:
+   `.venv/bin/python scripts/register_commands.py`, then open the link it prints.
+3. Deploy the Worker (needs a free Cloudflare account):
+   ```bash
+   cd discord-bot
+   npx wrangler login
+   npx wrangler deploy
+   npx wrangler secret put DISCORD_PUBLIC_KEY
+   npx wrangler secret put DISCORD_USER_ID
+   npx wrangler secret put GITHUB_TOKEN   # fine-grained, this repo only, Contents: read and write
+   ```
+4. Paste the `https://val-shop-wishlist.<you>.workers.dev` URL that `deploy` printed into
+   the app's **General Information → Interactions Endpoint URL** and save.
+   Discord checks it on save.
+
 ## Local commands
 
 ```bash
