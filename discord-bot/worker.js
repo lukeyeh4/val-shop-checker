@@ -99,7 +99,7 @@ let cache = {db: null, at: 0};
 async function loadDb(env) {
   if (cache.db && Date.now() - cache.at < 3600e3) return cache.db;
   try {
-    const r = await fetch(new URL("skins.json", env.SITE_URL), {cf: {cacheTtl: 3600}});
+    const r = await fetch(new URL("skins.json", env.SITE_URL), {cf: {cacheTtlByStatus: {"200-299": 3600, "400-599": 0}}});
     if (!r.ok) throw new Error(`skins.json ${r.status}`);
     const db = await r.json();
     // Autocomplete for add: collections whose skins are named after them (so "Reaver" matches them all),
