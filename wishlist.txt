@@ -3,3 +3,4 @@
 #   Reaver         -> every Reaver skin
 Reaver Karambit
 Neptune Vandal
+Recon Phantom
