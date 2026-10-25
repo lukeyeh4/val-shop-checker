@@ -15,7 +15,7 @@ on:
     paths: [wishlist.txt]
 
 permissions:
-  contents: read
+  contents: write   # commit history/shop.jsonl
   actions: read
   pages: write
   id-token: write
@@ -76,6 +76,21 @@ jobs:
           if [ ! -s "$RUNNER_TEMP/cookies.json" ]; then echo "No refreshed session"; exit 0; fi
           if [ -z "$GH_TOKEN" ]; then echo "GH_PAT not set; skipping"; exit 0; fi
           gh secret set RIOT_COOKIES --repo "$GITHUB_REPOSITORY" < "$RUNNER_TEMP/cookies.json"
+
+      # Keep the day's shop for stats. Pushes made with GITHUB_TOKEN don't trigger workflows.
+      - name: Save shop history
+        if: ${{ !cancelled() }}
+        run: |
+          if [ -z "$(git status --porcelain history/)" ]; then echo "Nothing new"; exit 0; fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add history/shop.jsonl
+          git commit -m "Record shop for $(date -u +%F)"
+          for i in 1 2 3; do  # a wishlist edit may land at the same time
+            git pull --rebase origin main && git push origin HEAD:main && exit 0
+            sleep 5
+          done
+          exit 1
 
       # Publish even when the shop fetch failed: the page then shows a banner.
       - uses: actions/configure-pages@v5

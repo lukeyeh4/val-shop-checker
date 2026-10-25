@@ -19,6 +19,7 @@ from pathlib import Path
 
 import requests
 
+import history
 import notify
 import webpage
 import wishlist
@@ -96,6 +97,8 @@ def main():
         print(f"{star} {skin['name']:<32} {skin['price'] or '?':>5} VP")
     hits = [s["name"] for s in shop["skins"] if s["wishlist_match"]]
     print(f"\nWishlist matches: {', '.join(hits) if hits else 'none'}")
+    if os.environ.get("GITHUB_ACTIONS"):  # the workflow commits it; local runs leave the file alone
+        print("History: " + ("recorded today" if history.record(shop) else "today already recorded"))
     print(f"Site: {webpage.write(shop, skin_database(), wanted)}")
 
     webhook = os.environ.get("DISCORD_WEBHOOK_URL", "").strip()

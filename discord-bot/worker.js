@@ -1,7 +1,7 @@
-// Discord bot (Cloudflare Worker): /wishlist shows, adds or removes wishlist.txt entries; /shop shows today's shop.
-// Discord POSTs each command here; edits commit to the repo the same way the website's sync does,
-// and that push rebuilds the site. Skin pictures and autocomplete come from the site's skins.json,
-// the shop from its shop.json.
+// Discord bot (Cloudflare Worker): /wishlist shows, adds or removes wishlist.txt entries; /shop shows today's
+// shop; /stats shows shop statistics. Discord POSTs each command here; edits commit to the repo the same way
+// the website's sync does, and that push rebuilds the site. Skin pictures and autocomplete come from the site's
+// skins.json, the shop from its shop.json, statistics from its stats.json.
 
 const API = "https://api.github.com/repos/";
 const MEDIA = "https://media.valorant-api.com/";
@@ -18,16 +18,21 @@ export default {
     if (interaction.type !== 2 && interaction.type !== 4) return new Response("unhandled", {status: 400});
 
     const owner = (interaction.member || interaction).user.id === env.DISCORD_USER_ID;
-    const isShop = interaction.data.name === "shop";  // anyone can see the shop (the website is public too)
+    const command = interaction.data.name;
+    const isPublic = command === "shop" || command === "stats";  // anyone can use these (the website is public too)
     if (interaction.type === 4) {  // autocomplete while typing
-      return json({type: 8, data: {choices: owner ? await suggest(interaction.data.options[0], env) : []}});
+      const sub = command === "stats" ? {name: "add", options: interaction.data.options} : interaction.data.options[0];
+      return json({type: 8, data: {choices: owner || isPublic ? await suggest(sub, env) : []}});
     }
-    if (!owner && !isShop) return json({type: 4, data: {content: "Only the wishlist owner can use this.", flags: EPHEMERAL}});
+    if (!owner && !isPublic) return json({type: 4, data: {content: "Only the wishlist owner can use this.", flags: EPHEMERAL}});
+    const reply = command === "shop" ? shopReply(env)
+      : command === "stats" ? statsReply(interaction.data.options?.[0]?.value, env)
+      : handle(interaction.data.options[0], env);
     // Discord wants an answer within 3s and GitHub can be slower: say "thinking…", then edit in the result.
-    ctx.waitUntil((isShop ? shopReply(env) : handle(interaction.data.options[0], env))
+    ctx.waitUntil(reply
       .catch(e => ({content: `⚠️ ${e.message}`}))
-      .then(reply => editReply(interaction, reply)));
-    return json({type: 5, data: {flags: isShop ? 0 : EPHEMERAL}});
+      .then(r => editReply(interaction, r)));
+    return json({type: 5, data: {flags: isPublic ? 0 : EPHEMERAL}});
   },
 };
 
@@ -50,6 +55,71 @@ async function shopReply(env) {
   }));
   if (embeds.length) embeds[0].url = env.SITE_URL;
   return {content: lines.join("\n"), embeds};
+}
+
+// /stats: an overview, or one skin or line ("Reaver") with how often it showed up and its odds.
+async function statsReply(query, env) {
+  const [r, db] = await Promise.all([fetch(new URL("stats.json?t=" + Date.now(), env.SITE_URL)), loadDb(env)]);
+  if (!r.ok) throw new Error(`Couldn't load stats (site said ${r.status})`);
+  const stats = await r.json();
+  return query?.trim() ? skinStats(query.trim(), stats, db) : overview(stats);
+}
+
+function overview(s) {
+  const w = s.wishlist;
+  const wish = w.skins ? [
+    `${w.skins} shop skin${w.skins === 1 ? "" : "s"} on it`,
+    `${pct(w.daily_odds)} chance a day, about every ${w.expected_days} days`,
+    `Within 7 / 30 / 90 days: ${["7", "30", "90"].map(d => pct(w.within[d])).join(" / ")}`,
+  ] : ["Empty. Add skins with /wishlist add."];
+  const last = w.hits.at(-1);
+  if (s.days) wish.push(last ? `Hits: ${w.hits.length}, last ${ago(last.date)} (${last.skins.join(", ")})` : "No hits yet");
+  const fields = [{name: "Your wishlist", value: wish.join("\n")}];
+  if (s.days) {
+    const money = n => n.toLocaleString("en-US");
+    fields.push(
+      {name: "Shops", value: `Average **${money(s.avg_value)}** VP\nPriciest ${money(s.priciest.value)} VP (${ago(s.priciest.date)})`, inline: true},
+      {name: "Tiers (vs. all skins)", value: s.tiers.filter(t => t.slots).map(t => `${t.name} ${pct(t.share)} (${pct(t.catalog_share)})`).join("\n") || "-", inline: true},
+      {name: "Top weapons", value: s.weapons.slice(0, 5).map(x => `${x.name} ×${x.slots}`).join("\n") || "-", inline: true},
+    );
+  }
+  const since = s.days ? `${s.days} day${s.days === 1 ? "" : "s"} tracked, since ${s.first_day}` : "No days recorded yet. Tracking starts with the next daily shop.";
+  return {content: "", embeds: [{title: "Shop stats", description: since, color: 0xFF4655, fields}]};
+}
+
+function skinStats(query, s, db) {
+  if (!db) throw new Error("The skin list isn't available right now, try again in a minute");
+  const re = pattern(query);
+  if (!db.skins.some(x => re.test(x[0]))) return {content: `No skin matches **${query}**.`};
+  const shopSkins = db.skins.filter(x => re.test(x[0]) && !x[5]).length;
+  const seen = Object.entries(s.skins).filter(([name]) => re.test(name)).map(([, x]) => x);
+  const count = seen.reduce((n, x) => n + x.count, 0);
+  const p = dailyOdds(shopSkins, s.eligible);
+  const lines = [
+    !s.days ? "No days recorded yet."
+      : count ? `Seen **${count}×** in ${s.days} tracked day${s.days === 1 ? "" : "s"}, last ${ago(seen.map(x => x.last).sort().at(-1))}`
+      : `Not seen in ${s.days} tracked day${s.days === 1 ? "" : "s"}`,
+    shopSkins && `${pct(p)} chance a day, about every ${Math.round(1 / p)} days; ${pct(1 - (1 - p) ** 30)} within 30 days`,
+  ].filter(Boolean);  // limited skins already carry a warning from card()
+  const embed = card(query, db, false);
+  embed.description += "\n\n" + lines.join("\n");
+  return {content: "", embeds: [embed]};
+}
+
+// Same estimate as stats.py: chance at least one of `matching` skins is among 4 even picks from `eligible`.
+function dailyOdds(matching, eligible, slots = 4) {
+  let miss = 1;
+  for (let i = 0; i < slots; i++) miss *= Math.max(eligible - matching - i, 0) / (eligible - i);
+  return 1 - miss;
+}
+
+const pct = p => p > 0.995 ? ">99%" : `${(p * 100).toFixed(p >= 0.1 ? 0 : p >= 0.01 ? 1 : 2)}%`;
+
+// "today", "yesterday", "12 days ago" for a shop day (UTC date).
+function ago(date) {
+  const now = new Date();
+  const days = Math.round((Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()) - Date.parse(date)) / 864e5);
+  return days <= 0 ? "today" : days === 1 ? "yesterday" : `${days} days ago`;
 }
 
 async function handle(sub, env, retry = true) {

@@ -52,7 +52,10 @@ scripts/
 wishlist.txt     # skins I'm waiting for
 web/index.html   # page template (shop + wishlist browser), data injected at build
 .github/workflows/shop.yml   # daily run + manual trigger; deploys Pages
-discord-bot/   # Cloudflare Worker for /wishlist and /shop
+discord-bot/   # Cloudflare Worker for /wishlist, /shop and /stats
+scripts/history.py           # appends each day's shop to history/shop.jsonl
+scripts/stats.py             # history → site/stats.json
+history/shop.jsonl           # one line per shop day (committed by the workflow)
 scripts/register_commands.py # registers the slash commands with Discord
 requirements.txt             # requests
 ```
@@ -86,7 +89,7 @@ requirements.txt             # requests
 - **GH_PAT:** a fine-grained token limited to this repo with *Secrets:
   read/write*.
 
-## Next: statistics (plan)
+## Statistics
 
 Goal: answer "how often does a skin show up?", "how long since I last saw it?"
 and "what are my odds of seeing a wishlist skin?". Riot doesn't expose past shops,
@@ -120,14 +123,14 @@ so nothing can be backfilled. Stats start from the day recording begins.
 - Maybe: a monthly recap post on the 1st.
 
 **Milestones**
-- [ ] 9. History: `run.py` appends to `history/shop.jsonl`; the workflow commits it.
-- [ ] 10. `stats.py` → `site/stats.json`, checked against a small hand-written history.
+- [x] 9. History: `run.py` appends to `history/shop.jsonl`; the workflow commits it (started 2026-10-25).
+- [x] 10. `stats.py` → `site/stats.json`, checked against a small hand-written history.
 - [ ] 11. Website Stats tab.
-- [ ] 12. Discord `/stats`.
+- [x] 12. Discord `/stats` (anyone can use it; `skin:` takes a skin or a line like `Reaver`).
 
 **Open questions**
-- Commit history to `main` (simple, one small commit a day) or to a separate `data`
-  branch (keeps `main`'s log clean)? Leaning `main`.
+- ~~Commit history to `main` or a separate `data` branch?~~ `main`: simple, one small
+  commit a day, and the push trigger ignores it.
 - Record Night Market offers too, once that's supported?
 
 ## Later (maybe)

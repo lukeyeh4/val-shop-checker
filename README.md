@@ -54,9 +54,10 @@ write**. Stars then commit to `wishlist.txt`, which Discord uses and every devic
 loads. You can also edit `wishlist.txt` directly; one skin per line, whole-word
 and case-insensitive (`Reaver` = every Reaver skin).
 
-### 5. Discord `/wishlist` and `/shop` commands (optional)
+### 5. Discord `/wishlist`, `/shop` and `/stats` commands (optional)
 
-`/shop` posts today's shop (anyone in the server can use it). `/wishlist show`, `/wishlist add <skin>` and `/wishlist remove <skin>` edit
+`/shop` posts today's shop and `/stats` shows shop statistics and odds
+(anyone in the server can use them). `/wishlist show`, `/wishlist add <skin>` and `/wishlist remove <skin>` edit
 `wishlist.txt` from Discord, with skin pictures, autocomplete for skin names, and
 a warning for limited skins that never show up in the shop. Only you
 (`DISCORD_USER_ID`) can use them, and the replies are visible only to you. The command runs on a free Cloudflare Worker
