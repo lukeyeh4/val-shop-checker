@@ -1,3 +1,4 @@
 # Skins you're waiting for, one per line. Case-insensitive, whole words:
 #   Prime Vandal   -> just that skin
 #   Reaver         -> every Reaver skin
+Reaver Karambit
