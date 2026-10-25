@@ -2,3 +2,4 @@
 #   Prime Vandal   -> just that skin
 #   Reaver         -> every Reaver skin
 Reaver Karambit
+Neptune Vandal
