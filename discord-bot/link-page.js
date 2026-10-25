@@ -4,16 +4,17 @@ import {AUTH_LOGIN_URL, SHARDS} from "./riot.js";
 
 const esc = s => String(s).replace(/[&<>"']/g, c => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"})[c]);
 
-export function linkPage({error = "", done = null, quick = false, expired = false} = {}) {
+export function linkPage({error = "", done = null, quick = false, owner = false, expired = false} = {}) {
   let body;
   if (expired) {
     body = `<h1>Link expired</h1><p>This link was already used or is more than 10 minutes old. Run <code>/link</code> in Discord again.</p>`;
   } else if (done) {
     body = `<h1>Linked ✓</h1>
       <p>Your shop today: ${done.map(s => `<b>${esc(s.name)}</b>`).join(", ")}.</p>
-      <p>${quick
+      ${owner ? "" : `<p>${quick
         ? "Use <code>/shop</code> in Discord to see it. When the shop resets, run <code>/link</code> again to see the new one."
-        : "You're set: <code>/shop</code> shows your shop every day."}</p>
+        : "You're set: <code>/shop</code> shows your shop every day."}</p>`}
+      ${owner ? `<p>This was a test: your own <code>/shop</code> still comes from the daily run. <code>/unlink</code> removes it.</p>` : ""}
       <p class="small">You can close this page.</p>`;
   } else {
     body = `<h1>See your shop in Discord</h1>

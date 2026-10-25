@@ -32,7 +32,7 @@ export default {
       return json({type: 8, data: {choices: owner || command === "stats" ? await suggest(sub, env) : []}});
     }
     if (!owner && !isPublic) return json({type: 4, data: {content: "Only the wishlist owner can use this.", flags: EPHEMERAL}});
-    if (command === "link") return json({type: 4, data: await linkReply(userId, owner, request, env)});
+    if (command === "link") return json({type: 4, data: await linkReply(userId, request, env)});
     if (command === "unlink") {
       await env.LINKS.delete(`user:${userId}`);
       return json({type: 4, data: {content: "Unlinked: your saved Riot login is deleted.", flags: EPHEMERAL}});
@@ -102,8 +102,8 @@ async function saveLink(env, userId, fetched, shard) {
   return shop;
 }
 
-async function linkReply(userId, owner, request, env) {
-  if (owner) return {content: "Your shop already comes from the daily run, so there's nothing to link.", flags: EPHEMERAL};
+// The owner can link too, to try the flow; their own /shop keeps coming from the daily run.
+async function linkReply(userId, request, env) {
   const token = crypto.randomUUID();
   await env.LINKS.put(`link:${token}`, userId, {expirationTtl: 600});
   return {
@@ -133,7 +133,7 @@ async function linkRoute(request, token, env) {
       : await fetchShop(cookies, shard, await loadDb(env));
     const shop = await saveLink(env, userId, fetched, shard);
     await env.LINKS.delete(`link:${token}`);
-    return linkPage({done: shop.skins, quick: !!accessToken});
+    return linkPage({done: shop.skins, quick: !!accessToken, owner: userId === env.DISCORD_USER_ID});
   } catch (e) {
     if (!(e instanceof RiotError)) return linkPage({error: "Something went wrong. Try again."});
     if (!e.loginFailed) return linkPage({error: `${e.message}. Is the region right?`});
