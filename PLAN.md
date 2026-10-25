@@ -28,7 +28,9 @@ trimmed to the shop only (no rank or match stats).
   Cloudflare Worker (`discord-bot/`) reads `skins.json` and `shop.json`, which each
   run publishes next to the site, and edits `wishlist.txt` through the GitHub API.
   Friends can `/link` their own Riot account: a one-time page on the Worker takes
-  their `ssid` (never sent through Discord), saved in Cloudflare KV. Their `/shop`
+  either the address Riot's sign-in lands on (its access token lasts about an hour, so
+  it covers that day's shop; works on a phone) or their `ssid` (kept and refreshed, so
+  it lasts). Never sent through Discord; saved in Cloudflare KV. Their `/shop`
   is then fetched live by the Worker (`discord-bot/riot.js`, same flow as `riot.py`)
   and cached until their reset. `/unlink` deletes it.
 

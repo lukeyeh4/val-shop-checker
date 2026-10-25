@@ -4,7 +4,7 @@
 // skins.json, the shop from its shop.json, statistics from its stats.json.
 // Friends can /link their Riot account (saved in the LINKS KV namespace) so /shop shows their own shop.
 
-import {fetchShop, RiotError, SHARDS} from "./riot.js";
+import {fetchShop, fetchShopWithToken, RiotError, SHARDS} from "./riot.js";
 import {linkPage} from "./link-page.js";
 
 const API = "https://api.github.com/repos/";
@@ -41,6 +41,9 @@ export default {
     if (command === "shop" && !owner) {
       const linked = await env.LINKS.get(`user:${userId}`, "json");
       if (!linked) return json({type: 4, data: {content: "`/shop` shows your own shop once you link your Riot account: run `/link`.", flags: EPHEMERAL}});
+      if (!linked.cookies && linked.shop.reset_at * 1000 <= Date.now()) {  // a quick link only covers the day it was made
+        return json({type: 4, data: {content: "Your shop reset. Run `/link` again to see the new one (about 20 seconds).", flags: EPHEMERAL}});
+      }
       reply = friendShop(userId, linked, env);
     } else {
       reply = command === "shop" ? shopReply(env)
@@ -104,7 +107,7 @@ async function linkReply(userId, owner, request, env) {
   const token = crypto.randomUUID();
   await env.LINKS.put(`link:${token}`, userId, {expirationTtl: 600});
   return {
-    content: "Open this to connect your Riot account. It works once, for 10 minutes. Don't share it.",
+    content: "Tap to link your Riot account. It works on your phone, once, for 10 minutes. Don't share it.",
     flags: EPHEMERAL,
     components: [{type: 1, components: [{type: 2, style: 5, label: "Link Riot account", url: new URL(`/link/${token}`, request.url).href}]}],
   };
@@ -116,17 +119,36 @@ async function linkRoute(request, token, env) {
   if (!userId) return linkPage({expired: true});
   if (request.method !== "POST") return linkPage();
   const form = await request.formData();
-  const ssid = String(form.get("ssid") || "").trim().replace(/^ssid=/i, "");
+  const input = String(form.get("login") || "").trim();
   const shard = Object.hasOwn(SHARDS, form.get("shard")) ? form.get("shard") : "na";
-  if (!ssid) return linkPage({error: "Paste your ssid first."});
+  // The address Riot's sign-in lands on carries an access token; anything else should be the ssid cookie.
+  const accessToken = /access_token=([^&\s#]+)/.exec(input)?.[1];
+  const cookies = accessToken ? null : parseCookies(input);
+  if (!accessToken && !cookies.ssid) {
+    return linkPage({error: "That doesn't look like the playvalorant.com address. Sign in with the button, then copy the address of the page you land on."});
+  }
   try {
-    const shop = await saveLink(env, userId, await fetchShop({ssid}, shard, await loadDb(env)), shard);
+    const fetched = accessToken
+      ? await fetchShopWithToken(decodeURIComponent(accessToken), shard, await loadDb(env))
+      : await fetchShop(cookies, shard, await loadDb(env));
+    const shop = await saveLink(env, userId, fetched, shard);
     await env.LINKS.delete(`link:${token}`);
-    return linkPage({done: shop.skins});
+    return linkPage({done: shop.skins, quick: !!accessToken});
   } catch (e) {
     if (!(e instanceof RiotError)) return linkPage({error: "Something went wrong. Try again."});
-    return linkPage({error: e.loginFailed ? `${e.message} Copy it again while signed in.` : `${e.message}. Is the region right?`});
+    if (!e.loginFailed) return linkPage({error: `${e.message}. Is the region right?`});
+    return linkPage({error: accessToken
+      ? "Riot didn't accept that address (they expire after about an hour). Sign in again and paste the new one."
+      : "Riot didn't accept that ssid. Copy it again while signed in."});
   }
+}
+
+// "abc", "ssid=abc" or a whole cookie header ("Cookie: ssid=abc; clid=…") -> {ssid: "abc", …}.
+function parseCookies(input) {
+  const text = input.replace(/^cookie:\s*/i, "");
+  if (/^https?:/i.test(text)) return {};  // an address without the token part
+  if (!text.includes("=")) return text && !/\s/.test(text) ? {ssid: text} : {};
+  return Object.fromEntries(text.split(";").map(p => p.trim().split(/=(.*)/s).slice(0, 2)).filter(([k, v]) => k && v));
 }
 
 // /stats: an overview, or one skin or line ("Reaver") with how often it showed up and its odds.

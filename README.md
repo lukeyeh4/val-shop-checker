@@ -56,9 +56,10 @@ and case-insensitive (`Reaver` = every Reaver skin).
 
 ### 5. Discord bot commands (optional)
 
-`/shop` posts your shop. Friends run `/link` once (a one-time page where they paste
-their own Riot `ssid`, stored in the Worker's KV) and then `/shop` shows *their* shop;
-`/unlink` deletes it. `/stats` shows statistics and odds for your shop. Anyone in the
+`/shop` posts your shop. Friends run `/link`: a one-time page where they sign in with Riot
+and paste the address they land on (works on a phone, good until their shop resets), or
+paste their `ssid` once from a computer so it keeps working. It's stored in the Worker's
+KV, and then `/shop` shows *their* shop; `/unlink` deletes it. `/stats` shows statistics and odds for your shop. Anyone in the
 server can use these. `/wishlist show`, `/wishlist add <skin>` and `/wishlist remove <skin>` edit
 `wishlist.txt` from Discord, with skin pictures, autocomplete for skin names, and
 a warning for limited skins that never show up in the shop. Only you

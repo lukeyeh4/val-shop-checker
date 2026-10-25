@@ -23,11 +23,16 @@ export class RiotError extends Error {}
 
 export const AUTH_LOGIN_URL = AUTHORIZE_URL;
 
-// Today's shop for these cookies: {skins: [{name, image, price, tier_color}], resets_in, cookies}.
+// Today's shop for saved cookies: {skins: [{name, image, price, tier_color}], resets_in, cookies}.
 // `cookies` comes back updated, since Riot may rotate the session on each login.
 export async function fetchShop(cookies, shard, db) {
   const {token, cookies: fresh} = await accessToken(cookies);
-  if (!token) throw Object.assign(new RiotError("Riot didn't accept this login (expired or wrong ssid)."), {loginFailed: true});
+  if (!token) throw loginFailed();
+  return {...await fetchShopWithToken(token, shard, db), cookies: fresh};
+}
+
+// Same, from an access token (the "quick" link: it lasts about an hour, so there are no cookies to keep).
+export async function fetchShopWithToken(token, shard, db) {
   const auth = {Authorization: `Bearer ${token}`, "User-Agent": UA};
   const [entitlements, user, version] = await Promise.all([
     riotJson(ENTITLEMENTS_URL, {method: "POST", body: "{}", headers: {...auth, "Content-Type": "application/json"}}, "entitlements"),
@@ -57,8 +62,10 @@ export async function fetchShop(cookies, shard, db) {
       tier_color: info ? db.tiers[info[4]].color : null,
     };
   }));
-  return {skins, resets_in: panel.SingleItemOffersRemainingDurationInSeconds, cookies: fresh};
+  return {skins, resets_in: panel.SingleItemOffersRemainingDurationInSeconds, cookies: null};
 }
+
+const loginFailed = () => Object.assign(new RiotError("Riot didn't accept this login."), {loginFailed: true});
 
 async function accessToken(cookies) {
   const r = await fetch(AUTHORIZE_URL, {
@@ -79,6 +86,7 @@ async function accessToken(cookies) {
 
 async function riotJson(url, opts, context) {
   const r = await fetch(url, opts);
+  if (r.status === 401 || r.status === 403) throw loginFailed();  // expired or bad token
   if (!r.ok) throw new RiotError(`${context} failed: HTTP ${r.status}`);
   return r.json();
 }
